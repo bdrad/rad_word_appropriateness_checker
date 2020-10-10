@@ -1,0 +1,4 @@
+pyphonetics==0.5.3
+pandas==1.0.3
+nltk==3.5
+json==2.0.9

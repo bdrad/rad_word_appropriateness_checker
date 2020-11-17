@@ -55,7 +55,7 @@ python finetune.py \
 ## Instructions for Running Locally
 
 1. Clone this repository to your local PC.
-2. Install Python 3.6 or above
+2. Install Python 3.6 or above.
 3. Install everything in the requirements.txt file.
 4. Run generate_error_corpus.py script to generate data for fine-tuning.
 5. Run finetuning.py to fine tune the BERT model for dictation error detection.

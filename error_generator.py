@@ -321,7 +321,7 @@ class Error_generator():
           break
 
       changed.append(chosen_idx)
-      word_list = metaphone_sim(words[chosen_idx], 1)
+      word_list = metaphone_sim(words[chosen_idx].lower(), 1)
       chosen_word = random.choice(word_list)
       if verbose:
         print(chosen_idx, words[chosen_idx], "->", chosen_word)
@@ -353,7 +353,7 @@ class Error_generator():
     while num_cnt < num:
       chosen_idx = random.choice(range(words_len))
       cnt = 0
-      while len(words[chosen_idx]) < 3 and chosen_idx not in res_idx:
+      while len(words[chosen_idx]) < 3 or chosen_idx in res_idx:
         chosen_idx = random.choice(range(words_len))
         cnt += 1
         if cnt > 5:
@@ -365,7 +365,7 @@ class Error_generator():
       res_truth.append(words[chosen_idx])
 #       print('2.5',st-time.time()) #start
 #       st=time.time()        
-      word_list = metaphone_sim(words[chosen_idx], 1)
+      word_list = metaphone_sim(words[chosen_idx].lower(), 1)
 #       print('3',st-time.time()) #start
 #       st=time.time()
 #       word_list = ['hello','world']
@@ -420,7 +420,7 @@ class Error_generator():
       res_idx.append(chosen_idx)
       res_truth.append(words_raw[chosen_idx])
         
-      word_list = metaphone_sim(words[chosen_idx], 1)
+      word_list = metaphone_sim(words[chosen_idx].lower(), 1)
 
       chosen_word = random.choice(word_list)
       

@@ -4,13 +4,13 @@
 
 ### error_generator.py
 
-A tool to generate error according to the methodology in our manuscript. To properly generate phonetically similar errors, you need to prepare your own vocabulary.
+A tool to generate error according to the methodology in our manuscript. To properly generate phonetically similar errors, you need to prepare your own vocabulary file. You can edit the method `_set_vocab()`to fit your vocab file into the algorithm.
 
 ### generate_error_corpus.py
 
-Run this script to generate corrupted corpus using our error_generator tool. It will create a pickle file where each row contains the original and corrupted sentence, the changed index and words, and the oneshot vector. In the oneshot vector, `True` means the word at this position is changed while `False`  means it remains the same.
+Run this script to generate corrupted corpus using our `error_generator.py` tool. It will create a pickle file where each row contains the original and corrupted sentence, the changed index and words, and the oneshot vector. In the oneshot vector, `True` means the word at this position is changed while `False`  means it remains the same.
 
-The proportion of each error type is set according to the paper (Jama paper). You can change it by modifying the script. To run the script:
+The input VOCAB_FILE should be either a csv or a txt file, being consistent with the vocab file in `error_generator.py` . The input CORPUS_FILE should be a plain text file, with one sentence per line. You can change the proportion of the error types by modifying the script. To run the script:
 
 ```python
 python generate_error_corpus.py \
@@ -19,15 +19,13 @@ python generate_error_corpus.py \
   --save_dir=$SAVE_DIR
 ```
 
-
-
 ### finetune.py
 
 Run this python script to fine tune your BERT model. The model we adapt in finetuning is BertForTokenClassification from huggingface [transformers](https://github.com/huggingface/transformers) library. On top of the hidden states output from the BERT model, it applies a linear layer for token classification. 
 
 Arguments：
 
-* data_dir (required): The errored .pickle file.
+* data_dir (required): The errored `.pickle` file.
 * model_dir (required): Directory of transformers-compatible BERT model.
 * save_dir (required): Directory to save dataloaders, fine-tuned model, and outputs.
 * epochs: Numbers of epochs to run fine-tuning. Default: 3.
@@ -50,6 +48,29 @@ python finetune.py \
     --batch_size=$BATCH_SIZE 
 ```
 
+### test.py
+
+Run this script to test your finetuned model. It will compute micro-average ROC curve and ROC area and create a plot to illustrate.
+
+Arguments:
+
+* data_dir (required): The errored `.pickle` file.
+* model_dir (required): Directory of transformers-compatible BERT model.
+* save_dir (required): Directory to save dataloaders, fine-tuned model, and outputs.
+* batch_size: Batch size for running the test. Default: 32.
+
+To start testing, run:
+
+```python
+BATCH_SIZE=32
+
+python test.py \
+    --data_dir=$IN_DATA \
+    --model_dir=$MODEL_DIR \
+    --save_dir=$SV_DIR \
+    --batch_size=$BATCH_SIZE 
+```
+
 
 
 ## Instructions for Running Locally
@@ -59,3 +80,4 @@ python finetune.py \
 3. Install everything in the requirements.txt file.
 4. Run generate_error_corpus.py script to generate data for fine-tuning.
 5. Run finetuning.py to fine tune the BERT model for dictation error detection.
+6. Run test.py to evaluate your finetuned model.

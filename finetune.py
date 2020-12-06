@@ -1,23 +1,3 @@
-# import pandas as pd
-# import numpy as np
-# import tensorflow as tf
-# import torch
-# from torch.nn import BCEWithLogitsLoss, BCELoss
-# from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
-# from keras.preprocessing.sequence import pad_sequences
-# from sklearn.model_selection import train_test_split
-# from sklearn.preprocessing import MultiLabelBinarizer
-# import pickle
-# # from transformers import *
-# # from pytorch_pretrained_bert import BertTokenizer, BertConfig
-# # from pytorch_pretrained_bert import BertAdam, BertForSequenceClassification
-# from tqdm import tqdm, trange
-# from transformers import *
-# # from ast import literal_eval
-# import os, argparse
-# import pickle
-
-
 import pandas as pd
 import numpy as np
 from tqdm import tqdm, trange
@@ -84,33 +64,12 @@ def main(parser):
     tokenized_texts = [token_label_pair[0] for token_label_pair in tokenized_texts_and_labels]
     labels = [token_label_pair[1] for token_label_pair in tokenized_texts_and_labels]
     
-#     encodings = tokenizer.batch_encode_plus(comments,max_length=max_length,pad_to_max_length=True) # tokenizer's encoding method
-#     input_ids = encodings['input_ids'] # tokenized and encoded sentences
-#     token_type_ids = encodings['token_type_ids'] # token type ids
-#     attention_masks = encodings['attention_mask'] # attention masks
-    
-#     # Identifying indices of 'one_hot_labels' entries that only occur once - this will allow us to stratify split our training data later
-#     label_counts = df.one_hot_labels.astype(str).value_counts()
-#     one_freq = label_counts[label_counts==1].keys()
-#     one_freq_idxs = sorted(list(df[df.one_hot_labels.astype(str).isin(one_freq)].index), reverse=True)
-#     tf.logging.info('df label indices with only one instance:  %s' % (str(one_freq_idxs)))
-    
-#     # Gathering single instance inputs to force into the training set after stratified split
-#     one_freq_input_ids = [input_ids.pop(i) for i in one_freq_idxs]
-#     one_freq_token_types = [token_type_ids.pop(i) for i in one_freq_idxs]
-#     one_freq_attention_masks = [attention_masks.pop(i) for i in one_freq_idxs]
-#     one_freq_labels = [labels.pop(i) for i in one_freq_idxs]
-    
     # Use train_test_split to split our data into train and validation sets
     
     input_ids = pad_sequences([tokenizer.convert_tokens_to_ids(txt) for txt in tokenized_texts],
                           maxlen=max_length, dtype="long", value=0.0,
                           truncating="post", padding="post")
-#     pdb.set_trace()
-    
-#     tags = pad_sequences([[tag2idx.get(l) for l in lab] for lab in labels],
-#                      maxlen=max_length, value=tag2idx["PAD"], padding="post",
-#                      dtype="long", truncating="post")
+
     tags = pad_sequences([[l for l in lab] for lab in labels],
                      maxlen=max_length, value=tag2idx["PAD"], padding="post",
                      dtype="long", truncating="post")
@@ -120,12 +79,6 @@ def main(parser):
     train_inputs, not_train_inputs, train_labels, not_train_labels, train_masks, not_train_masks = train_test_split(input_ids, tags, attention_masks, random_state=4, test_size=0.30)#, stratify = labels)
     
     validation_inputs, test_inputs, validation_labels, test_labels, validation_masks, test_masks = train_test_split(not_train_inputs, not_train_labels, not_train_masks, random_state=4, test_size=0.50)#, stratify = not_train_labels)
-
-#     # Add one frequency data to train data
-#     train_inputs.extend(one_freq_input_ids)
-#     train_labels.extend(one_freq_labels)
-#     train_masks.extend(one_freq_attention_masks)
-#     train_token_types.extend(one_freq_token_types)
 
     # Convert all of our data into torch tensors, the required datatype for our model
     train_inputs = torch.tensor(train_inputs)
@@ -298,7 +251,7 @@ def main(parser):
         
     
     # Saving trained model    
-    torch.save(model.state_dict(), os.path.join(sv_dir,'finetuned_model_v1') )
+    torch.save(model.state_dict(), os.path.join(sv_dir,'pytorch_model.bin')) #finetuned_model_v1
     
     
     # ========================================
@@ -332,7 +285,6 @@ def main(parser):
         true_labels.extend(label_ids)
     
     
-    
     eval_loss = eval_loss / len(test_dataloader)
     validation_loss_values.append(eval_loss)
     tf.logging.info("Test loss: {}".format(eval_loss))
@@ -346,296 +298,7 @@ def main(parser):
     clf_report = classification_report(test_tags,pred_tags)
     tf.logging.info(str( clf_report ))
     pickle.dump(clf_report, open(os.path.join(sv_dir, 'classification_report.txt'),'wb')) #save report
-    
-    
-    
-#     # setting custom optimization parameters. You may implement a scheduler here as well.
-#     param_optimizer = list(model.named_parameters())
-#     no_decay = ['bias', 'gamma', 'beta']
-#     optimizer_grouped_parameters = [
-#         {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
-#          'weight_decay_rate': 0.01},
-#         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
-#          'weight_decay_rate': 0.0}
-#     ]
-    
-#     optimizer = AdamW(optimizer_grouped_parameters,lr=learn_rate,correct_bias=True)
-    
-#     # Store our loss and accuracy for plotting
-#     train_loss_set = []
-
-#     # trange is a tqdm wrapper around the normal python range
-#     for _ in trange(epochs, desc="Epoch"):
-
-#       # Training
-
-#       # Set our model to training mode (as opposed to evaluation mode)
-#       model.train()
-
-#       # Tracking variables
-#       tr_loss = 0 #running loss
-#       nb_tr_examples, nb_tr_steps = 0, 0
-
-#       # Train the data for one epoch
-#       for step, batch in enumerate(train_dataloader):
-#         # Add batch to GPU
-#         batch = tuple(t.to(device) for t in batch)
-#         # Unpack the inputs from our dataloader
-#         b_input_ids, b_input_mask, b_labels, b_token_types = batch
-#         # Clear out the gradients (by default they accumulate)
-#         optimizer.zero_grad()
-
-#         # # Forward pass for multiclass classification
-#         # outputs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask, labels=b_labels)
-#         # loss = outputs[0]
-#         # logits = outputs[1]
-
-#         # Forward pass for multilabel classification
-#         outputs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)
-#         logits = outputs[0]
-#         loss_func = BCEWithLogitsLoss() 
-#         loss = loss_func(logits.view(-1,num_labels),b_labels.type_as(logits).view(-1,num_labels)) #convert labels to float for calculation
-#         # loss_func = BCELoss() 
-#         # loss = loss_func(torch.sigmoid(logits.view(-1,num_labels)),b_labels.type_as(logits).view(-1,num_labels)) #convert labels to float for calculation
-#         train_loss_set.append(loss.item())    
-
-#         # Backward pass
-#         loss.backward()
-#         # Update parameters and take a step using the computed gradient
-#         optimizer.step()
-#         # scheduler.step()
-#         # Update tracking variables
-#         tr_loss += loss.item()
-#         nb_tr_examples += b_input_ids.size(0)
-#         nb_tr_steps += 1
-
-#       tf.logging.info("Train loss: {}".format(tr_loss/nb_tr_steps))
-
-#       ###############################################################################
-
-#       # Validation
-
-#       # Put model in evaluation mode to evaluate loss on the validation set
-#       model.eval()
-
-#       # Variables to gather full output
-#       logit_preds,true_labels,pred_labels,tokenized_texts = [],[],[],[]
-
-#       # Predict
-#       for i, batch in enumerate(validation_dataloader):
-#         batch = tuple(t.to(device) for t in batch)
-#         # Unpack the inputs from our dataloader
-#         b_input_ids, b_input_mask, b_labels, b_token_types = batch
-#         with torch.no_grad():
-#           # Forward pass
-#           outs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)
-#           b_logit_pred = outs[0]
-#           pred_label = torch.sigmoid(b_logit_pred)
-
-#           b_logit_pred = b_logit_pred.detach().cpu().numpy()
-#           pred_label = pred_label.to('cpu').numpy()
-#           b_labels = b_labels.to('cpu').numpy()
-
-#         tokenized_texts.append(b_input_ids)
-#         logit_preds.append(b_logit_pred)
-#         true_labels.append(b_labels)
-#         pred_labels.append(pred_label)
-
-#       # Flatten outputs
-#       pred_labels = [item for sublist in pred_labels for item in sublist]
-#       true_labels = [item for sublist in true_labels for item in sublist]
-
-#       # Calculate Accuracy
-#       threshold = 0.50
-#       pred_bools = [pl>threshold for pl in pred_labels]
-#       true_bools = [tl==1 for tl in true_labels]
-#       val_f1_accuracy = f1_score(true_bools,pred_bools,average='binary')*100
-#       val_flat_accuracy = accuracy_score(true_bools, pred_bools)*100
-        
-#       tf.logging.info('F1 Validation Accuracy: %s' % (str(val_f1_accuracy)))
-#       tf.logging.info('Flat Validation Accuracy: %s' % (str(val_flat_accuracy)))
-    
-#     torch.save(model.state_dict(), os.path.join(sv_dir,'radioped_model_v1') )
-    
-#     # Test
-
-#     # Put model in evaluation mode to evaluate loss on the validation set
-#     model.eval()
-
-#     #track variables
-#     logit_preds,true_labels,pred_labels,tokenized_texts = [],[],[],[]
-
-#     # Predict
-#     for i, batch in enumerate(test_dataloader):
-#       batch = tuple(t.to(device) for t in batch)
-#       # Unpack the inputs from our dataloader
-#       b_input_ids, b_input_mask, b_labels, b_token_types = batch
-#       with torch.no_grad():
-#         # Forward pass
-#         outs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)
-#         b_logit_pred = outs[0]
-#         pred_label = torch.sigmoid(b_logit_pred)
-
-#         b_logit_pred = b_logit_pred.detach().cpu().numpy()
-#         pred_label = pred_label.to('cpu').numpy()
-#         b_labels = b_labels.to('cpu').numpy()
-
-#       tokenized_texts.append(b_input_ids)
-#       logit_preds.append(b_logit_pred)
-#       true_labels.append(b_labels)
-#       pred_labels.append(pred_label)
-
-#     # Flatten outputs
-#     tokenized_texts = [item for sublist in tokenized_texts for item in sublist]
-#     pred_labels = [item for sublist in pred_labels for item in sublist]
-#     true_labels = [item for sublist in true_labels for item in sublist]
-#     # Converting flattened binary values to boolean values
-#     true_bools = [tl==1 for tl in true_labels]
-    
-#     pred_bools = [pl>0.50 for pl in pred_labels] #boolean output after thresholding
-
-#     # Print and save classification report
-#     tf.logging.info('Test F1 Accuracy: %s' % (str( f1_score(true_bools, pred_bools,average='binary') )))
-#     tf.logging.info('Test Flat Accuracy: %s' % (str( accuracy_score(true_bools, pred_bools) )))
-    
-#     clf_report = classification_report(true_bools,pred_bools)
-#     pickle.dump(clf_report, open(os.path.join(sv_dir, 'classification_report.txt'),'wb')) #save report
-#     tf.logging.info(str( clf_report ))   
-    
-#     tf.logging.info('Test matthews corr. coef: {0:0.4%}'.format(matthews_corrcoef(true_bools, pred_bools)))
-#     tf.logging.info('Test roc auc: {0:0.4%}'.format(roc_auc_score(true_labels, pred_labels)))
-    
-#     model = BertForSequenceClassification.from_pretrained(model_dir, num_labels=num_labels)
-#     model.cuda()
-    
-#     # BERT fine-tuning parameters
-#     param_optimizer = list(model.named_parameters())
-#     no_decay = ['bias', 'gamma', 'beta']
-#     optimizer_grouped_parameters = [
-#         {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
-#          'weight_decay_rate': 0.01},
-#         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
-#          'weight_decay_rate': 0.0}
-#     ]
-
-#     optimizer = BertAdam(optimizer_grouped_parameters,
-#                          lr=learn_rate,
-#                          warmup=.1)
-
-#     # Function to calculate the accuracy of our predictions vs labels
-#     def flat_accuracy(preds, labels):
-#         pred_flat = np.argmax(preds, axis=1).flatten()
-#         labels_flat = labels.flatten()
-#         return np.sum(pred_flat == labels_flat) / len(labels_flat)
-
-#     # Store our loss and accuracy for plotting
-#     train_loss_set = []
-
-#     # BERT training loop
-#     for _ in trange(epochs, desc="Epoch"):  
-
-#       ## TRAINING
-
-#       # Set our model to training mode
-#       model.train()  
-#       # Tracking variables
-#       tr_loss = 0
-#       nb_tr_examples, nb_tr_steps = 0, 0
-#       # Train the data for one epoch
-#       for step, batch in enumerate(train_dataloader):
-#         # Add batch to GPU
-#         batch = tuple(t.to(device) for t in batch)
-#         # Unpack the inputs from our dataloader
-#         b_input_ids, b_input_mask, b_labels = batch
-#         # Clear out the gradients (by default they accumulate)
-#         optimizer.zero_grad()
-#         # Forward pass
-#         loss = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask, labels=b_labels)
-#         train_loss_set.append(loss.item())    
-#         # Backward pass
-#         loss.backward()
-#         # Update parameters and take a step using the computed gradient
-#         optimizer.step()
-#         # Update tracking variables
-#         tr_loss += loss.item()
-#         nb_tr_examples += b_input_ids.size(0)
-#         nb_tr_steps += 1
-#       tf.logging.info("Train loss: {}".format(tr_loss/nb_tr_steps))
-
-#       ## VALIDATION
-
-#       # Put model in evaluation mode
-#       model.eval()
-#       # Tracking variables 
-#       eval_loss, eval_accuracy = 0, 0
-#       nb_eval_steps, nb_eval_examples = 0, 0
-#       # Evaluate data for one epoch
-#       for batch in validation_dataloader:
-#         # Add batch to GPU
-#         batch = tuple(t.to(device) for t in batch)
-#         # Unpack the inputs from our dataloader
-#         b_input_ids, b_input_mask, b_labels = batch
-#         # Telling the model not to compute or store gradients, saving memory and speeding up validation
-#         with torch.no_grad():
-#           # Forward pass, calculate logit predictions
-#           logits = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)    
-#         # Move logits and labels to CPU
-#         logits = logits.detach().cpu().numpy()
-#         label_ids = b_labels.to('cpu').numpy()
-#         tmp_eval_accuracy = flat_accuracy(logits, label_ids)    
-#         eval_accuracy += tmp_eval_accuracy
-#         nb_eval_steps += 1
-#       tf.logging.info("Validation Accuracy: {}".format(eval_accuracy/nb_eval_steps))
-    
-    
-#     ## Prediction on test set
-#     # Put model in evaluation mode
-#     model.eval()
-#     # Tracking variables 
-#     predictions , true_labels = [], []
-#     # Predict 
-#     for batch in prediction_dataloader:
-#       # Add batch to GPU
-#       batch = tuple(t.to(device) for t in batch)
-#       # Unpack the inputs from our dataloader
-#       b_input_ids, b_input_mask, b_labels = batch
-#       # Telling the model not to compute or store gradients, saving memory and speeding up prediction
-#       with torch.no_grad():
-#         # Forward pass, calculate logit predictions
-#         logits = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)
-#       # Move logits and labels to CPU
-#       logits = logits.detach().cpu().numpy()
-#       label_ids = b_labels.to('cpu').numpy()  
-#       # Store predictions and true labels
-#       predictions.append(logits)
-#       true_labels.append(label_ids)
-
-#     # Import and evaluate each test batch using Matthew's correlation coefficient
-#     from sklearn.metrics import matthews_corrcoef
-#     matthews_set = []
-#     for i in range(len(true_labels)):
-#       matthews = matthews_corrcoef(true_labels[i],
-#                      np.argmax(predictions[i], axis=1).flatten())
-#       matthews_set.append(matthews)
-
-#     # Flatten the predictions and true values for aggregate Matthew's evaluation on the whole dataset
-#     flat_predictions = [item for sublist in predictions for item in sublist]
-#     flat_predictions = np.argmax(flat_predictions, axis=1).flatten()
-#     flat_true_labels = [item for sublist in true_labels for item in sublist]
-
-#     # Converting flattened binary values to boolean values
-#     true_bools = [tl==1 for tl in flat_true_labels]    
-#     pred_bools = [pl>0.50 for pl in flat_predictions] #boolean output after thresholding
-
-#     tf.logging.info('Classification accuracy using BERT Fine Tuning: {0:0.2%}'.format(matthews_corrcoef(flat_true_labels, flat_predictions)))
-    
-#     # Print and save classification report
-#     tf.logging.info('Test F1 Accuracy: %s' % (str( f1_score(true_bools, pred_bools,average='micro') )))
-#     tf.logging.info('Test Flat Accuracy: %s' % (str( accuracy_score(true_bools, pred_bools) )))
-    
-#     clf_report = classification_report(true_bools,pred_bools)
-#     pickle.dump(clf_report, open(os.path.join(sv_dir, 'classification_report.txt'),'wb')) #save report
-#     tf.logging.info(str( clf_report ))
+                   
                    
 if __name__=='__main__': 
     parser = argparse.ArgumentParser(description = 'Fine Tune and Test on corpus of errors')
@@ -649,4 +312,3 @@ if __name__=='__main__':
     args = parser.parse_args()
         
     main(args)
-    

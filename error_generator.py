@@ -8,35 +8,39 @@ import pandas as pd
 import collections
 import json
 from time import *
+from pyphonetics import Metaphone
 
 vocab = None 
 meta_lst = None
 freq_vocab = None
-
-from pyphonetics import Metaphone
 metaphone = Metaphone()
 
-def _set_vocab(in_vocab_f = '/data/sohn1/rad-bert/radiopedia_vocab.csv'):
+def _set_vocab(in_vocab_f):
+    """
+    Set your own vocabulary here. It is suggested that the vocab file include a column of word frequency count.
+    """
     global meta_lst 
     global vocab
     global freq_vocab
-    
-    # rad_vocab_df = pd.read_csv('/data/sohn1/rad-bert/rad_report_vocab.csv')
-    # rad_vocab_df = pd.read_csv('rad_vocab.csv')
 
-    rad_vocab_df = pd.read_csv(in_vocab_f, encoding='utf-8')
-    
-    vocab = [word for word in rad_vocab_df[rad_vocab_df['count'] >3]['word'].tolist() if isinstance(word,str) and len(word)>1]
-    print('Vocab Len:', len(vocab))
-    
+    if in_vocab_f.endswith(".csv"):
+        rad_vocab_df = pd.read_csv(in_vocab_f, encoding='utf-8')
+        vocab = [word for word in rad_vocab_df[rad_vocab_df['count'] >3]['word'].tolist() if isinstance(word,str) and len(word)>1]
+        
+        freq_vocab = [word for word in rad_vocab_df[rad_vocab_df['count'] >20]['word'].tolist() if isinstance(word,str) and len(word)>1
+                     and len(word)<=5]
+        
+    elif in_vocab_f.endswith(".txt"):
+        with open(in_vocab_f, 'r') as f:
+            vocab = [line.strip() for line in f if len(line.strip()) > 1]
+            freq_vocab = [word for word in vocab if len(word) <= 5]
+            
+    # stores all the metaphone phonetic representations while initialising vocab
     meta_lst = [metaphone.phonetics(word) for word in vocab]
     
-    freq_vocab = [word for word in rad_vocab_df[rad_vocab_df['count'] >20]['word'].tolist() if isinstance(word,str) and len(word)>1
-                 and len(word)<=5]
+    print('Vocab Len:', len(vocab))
     print('Freq vocab Len:', len(freq_vocab))
-    
     return vocab
-
 
 # My edit distance
 # Add pruning when calculating edit distance to improve efficiency
@@ -176,7 +180,6 @@ def metaphone_sim(target, threshold = 1):
     word = vocab[i]
     if target_len * 2 < len(word) or target_len / 2 > len(word):
       continue
-#     if isLetter(word[0]) and word != target:
     if word[0].isalpha() and word != target:
       word_meta = meta_lst[i]
       # Levenshtein distance
@@ -336,15 +339,12 @@ class Error_generator():
     Usually less than 3
     Return a dict as json form
     """
-#     print('starting this method')
-#     st = time.time() #start
     result = dict()
     res_idx = []
     res_truth = []
     res_error = []
     words = nltk.word_tokenize(text.lower())
-#     print('1',st-time.time()) #start
-#     st=time.time()
+
     words_len = len(words)
     if words_len == 0:
       return 
@@ -359,16 +359,12 @@ class Error_generator():
         if cnt > 5:
           chosen_idx = 0
           break
-#       print('2',st-time.time()) #start
-#       st=time.time()
+
       res_idx.append(chosen_idx)
       res_truth.append(words[chosen_idx])
-#       print('2.5',st-time.time()) #start
-#       st=time.time()        
+     
       word_list = metaphone_sim(words[chosen_idx].lower(), 1)
-#       print('3',st-time.time()) #start
-#       st=time.time()
-#       word_list = ['hello','world']
+
       chosen_word = random.choice(word_list)
       res_error.append(chosen_word)
 
@@ -377,16 +373,13 @@ class Error_generator():
       words[chosen_idx] = chosen_word
       num_cnt += 1
     
-#     res_text = ' '.join(words).capitalize()
-    result['text'] = words #res_text
+    result['text'] = words 
     result['index'] = res_idx
     result['truth'] = res_truth
     result['error'] = res_error
-#     print('4',st-time.time()) #start
-#     st=time.time()
     return result
 
-  def phonetical_replace_num_json_gc_edit(self, result, num = 1, verbose = False, hs_code=3):
+  def substitute_word(self, result, num = 1, verbose = False, hs_code=3):
     """
     Randomly replace #num word(s) in the given text ARRAY, preserving input text capitalization
     Return a dict as json form

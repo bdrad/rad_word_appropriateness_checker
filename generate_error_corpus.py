@@ -15,18 +15,6 @@ def generate_errors(input_text, generator, max_subs=15, error_prob=0.074, type_p
         input_split.append('.')
     num_input_words = len(input_split)
 
-# The dumb way of doing this
-#
-#     # nCr * P(success)^r * P(failure)^(n-r)
-#     error_probs = [comb(num_input_words, x)* (error_prob)**x * (1-(error_prob))**(num_input_words-x) for x in range( min(num_input_words+1, max_subs+1) )]
-#     if sum(error_probs)<1:
-#         error_probs.append(1-sum(error_probs))
-#     if verbose:
-#         print(error_probs)
-#     error_nums_list = range(len(error_probs))
-#     num_errors = random.choices(error_nums_list, weights=error_probs)[0]
-
-# The smarter way
     num_errors = sum([random.random()<error_prob for _ in range(num_input_words)])
     
     if verbose:
@@ -41,7 +29,7 @@ def generate_errors(input_text, generator, max_subs=15, error_prob=0.074, type_p
         elif error_type=='delete':
             result = generator.delete_word(result)
         else: # error_type=='substitution'
-            result = generator.phonetical_replace_num_json_gc_edit(result)
+            result = generator.substitute_word(result)
     
         if verbose:
             print(x)
@@ -68,9 +56,6 @@ if __name__=='__main__':
 
     vocab_f = vocab_file
     generator = Error_generator(vocab_f, 0.2)
-    
-#     with open('/data/sohn1/rad-bert/data/processed/all_impressions_v3.txt', 'r') as f:
-#         imp_lines_raw = f.readlines()
         
     with open(corpus_file, 'r') as f:
         imp_lines_raw = f.readlines()
@@ -85,9 +70,6 @@ if __name__=='__main__':
     for iii in range(len(imp_lines_proc)):
         if iii%100 == 0:
             print(iii)
-#             for _,value in imp_lines_errors_dict.items():
-#                 print(value)
-#             input()
         
         if len(imp_lines_proc[iii].split())<5: # min 5 words
             continue

@@ -3,23 +3,20 @@ import numpy as np
 from tqdm import tqdm, trange
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
-from transformers import BertTokenizer, BertConfig
+from torch.utils.tensorboard import SummaryWriter
+from torch.nn.functional import softmax
+import transformers
+from transformers import BertTokenizer, BertConfig, BertForTokenClassification, AdamW
 from keras.preprocessing.sequence import pad_sequences
 from sklearn.model_selection import train_test_split
-import transformers
-from transformers import BertForTokenClassification, AdamW
 from sklearn.metrics import classification_report, confusion_matrix, multilabel_confusion_matrix, f1_score, accuracy_score, matthews_corrcoef, roc_auc_score
 import os, argparse
-import tensorflow as tf
-from torch.nn.functional import softmax
 import pickle
-import keras
-
 from sklearn.metrics import roc_curve, auc
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_auc_score
+
+matplotlib.use('Agg')
 
 def to_cuda_manual(Tokenizer_output):
     tokens_tensor = Tokenizer_output['input_ids'].to('cuda:0')
@@ -34,13 +31,12 @@ def to_cuda_manual(Tokenizer_output):
 
 def main(parser):
         
-    tf.logging.set_verbosity(tf.logging.INFO)
+    writer = SummaryWriter('test_logs') #log_dir='logd'
     
     in_data, sv_dir, model_dir, batch_size = parser.data_dir, parser.save_dir, parser.model_dir, int(parser.batch_size)
-    tf.logging.info(in_data)
-    tf.logging.info(sv_dir)
-    tf.logging.info(model_dir)
-    tf.logging.info(batch_size)
+
+    if not os.path.isdir(sv_dir):
+        os.makedirs(sv_dir)
 
     df = pd.read_pickle(in_data)
     
@@ -50,13 +46,14 @@ def main(parser):
     tag_values = ['normal', 'insert', 'delete', 'sub', 'PAD']
     tag2idx = {t: i for i, t in enumerate(tag_values)}
     
-    tf.logging.info('Example pairs')
-    tf.logging.info('%s : %s' % (raw_labels[200], comments[200]))
-    tf.logging.info('%s : %s' % (raw_labels[20], comments[20]))
+    writer.add_text('info', 'Example pairs', 0)
+    writer.add_text('info', '%s : %s' % (raw_labels[10], comments[10]), 10)
+    writer.add_text('info', '%s : %s' % (raw_labels[20], comments[20]), 20)
         
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_gpu = torch.cuda.device_count()
-    tf.logging.info(str(torch.cuda.get_device_name(0)))
+
+    writer.add_text('info', 'device: %s' % str(device), 30) #torch.cuda.get_device_name(0)
     
     #Load in tokenizer
     max_length = 512
@@ -109,12 +106,14 @@ def main(parser):
     test_data = TensorDataset(test_inputs, test_masks, test_labels)#, test_token_types)
     test_sampler = SequentialSampler(test_data)
     test_dataloader = DataLoader(test_data, sampler=test_sampler, batch_size=batch_size)
-    tf.logging.info('test: %s' % (str(test_inputs.shape)))
+
+    writer.add_text('info', 'test: %s' % (str(test_inputs.shape)), 40)
     
     model = BertForTokenClassification.from_pretrained(model_dir, num_labels=5, output_attentions = False,
         output_hidden_states = False)
 
-    model = model.to('cuda:0')
+    if torch.cuda.is_available():
+        model = model.to('cuda:0')
 
     # ========================================
     #               Testing
@@ -149,7 +148,9 @@ def main(parser):
         true_labels.extend(label_ids)
 
     eval_loss = eval_loss / len(test_dataloader)
-    tf.logging.info("loss: {}".format(eval_loss))
+
+    print("loss: {}".format(eval_loss))
+
     pred_tags = [tag_values[p_i] for p, l in zip(predictions, true_labels)
                                  for p_i, l_i in zip(p, l) if tag_values[l_i] != "PAD"]
     test_tags = [tag_values[l_i] for l in true_labels
@@ -160,15 +161,16 @@ def main(parser):
     raw_tags_sing = [l_i for p, l in zip(raw_predictions, true_labels)
                                  for p_i, l_i in zip(p, l) if tag_values[l_i] != "PAD"]
     raw_tags = np.array([np.eye(len(tag2idx))[xx] for xx in raw_tags_sing])
-    tf.logging.info(str(raw_preds.shape))
-    tf.logging.info(str(raw_tags.shape))
+
+    writer.add_text('info', str(raw_preds.shape), 50)
+    writer.add_text('info', str(raw_tags.shape), 60)
     
-    tf.logging.info('F1 Accuracy: %s' % (str( f1_score(test_tags, pred_tags,average=None) )))
-    tf.logging.info('Flat Accuracy: %s' % (str( accuracy_score(test_tags, pred_tags) )))
+    print('F1 Accuracy: %s' % (str( f1_score(test_tags, pred_tags,average=None) )))
+    print('Flat Accuracy: %s' % (str( accuracy_score(test_tags, pred_tags) )))
    
     clf_report = classification_report(test_tags,pred_tags)
-    tf.logging.info(str( clf_report ))
-    
+
+    print(str( clf_report ))
     # Compute ROC curve and ROC area for each class
     fpr = dict()
     tpr = dict()
@@ -184,7 +186,7 @@ def main(parser):
     fpr["micro"], tpr["micro"], _ = roc_curve(raw_tags.ravel(), raw_preds.ravel())
     roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
     
-    tf.logging.info(str(roc_auc))
+    print(str(roc_auc))
     
     for i, color in enumerate(['red','orange','yellow','green']):
         plt.plot(fpr[i], tpr[i], color=color,

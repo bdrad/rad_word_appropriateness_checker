@@ -1,9 +1,7 @@
 import pandas as pd
 from error_generator import *
 from tqdm import tqdm
-import re
 import random
-from scipy.special import comb 
 import argparse
 import os
 
@@ -84,6 +82,8 @@ if __name__=='__main__':
                                                'oneshot':  result['hotshot']}
 
     imp_lines_errors = pd.DataFrame.from_dict(imp_lines_errors_dict,orient='index')
-
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir)
     imp_lines_errors.to_pickle(os.path.join(save_dir, "error_corpus.pickle"))
-    print('Wrote %d lines to pickle' % (len(imp_lines_errors)))
+    imp_lines_errors.to_csv(os.path.join(save_dir, "error_corpus.csv"))
+    print('Successfully wrote %d lines.' % (len(imp_lines_errors)))

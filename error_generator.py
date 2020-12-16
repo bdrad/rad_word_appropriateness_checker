@@ -9,6 +9,7 @@ import collections
 import json
 from time import *
 from pyphonetics import Metaphone
+import Levenshtein
 
 vocab = None 
 meta_lst = None
@@ -25,10 +26,14 @@ def _set_vocab(in_vocab_f):
 
     if in_vocab_f.endswith(".csv"):
         rad_vocab_df = pd.read_csv(in_vocab_f, encoding='utf-8')
-        vocab = [word for word in rad_vocab_df[rad_vocab_df['count'] >3]['word'].tolist() if isinstance(word,str) and len(word)>1]
-        
-        freq_vocab = [word for word in rad_vocab_df[rad_vocab_df['count'] >20]['word'].tolist() if isinstance(word,str) and len(word)>1
+        columns_lst = rad_vocab_df.columns.values.tolist()
+        if 'count' in columns_lst:
+            vocab = [word for word in rad_vocab_df[rad_vocab_df['count'] >3]['word'].tolist() if isinstance(word,str) and len(word)>1]
+            freq_vocab = [word for word in rad_vocab_df[rad_vocab_df['count'] >20]['word'].tolist() if isinstance(word,str) and len(word)>1
                      and len(word)<=5]
+        else:
+            vocab = [word for word in rad_vocab_df['word'].tolist() if isinstance(word,str) and len(word)>1]
+            freq_vocab = [word for word in vocab if len(word) <= 5]
         
     elif in_vocab_f.endswith(".txt"):
         with open(in_vocab_f, 'r') as f:
@@ -123,12 +128,7 @@ def my_edit_distance(s1, s2, threshold = 1):
     if not prev_flag and not cur_flag:
       return 5 # anything bigger than threshold
     prev_flag = cur_flag
-  """
-  for i in range(len1 + 1):
-    for j in range(len2 + 1):
-      print(lev[i][j],end="")
-    print('\n')
-  """
+
   return lev[len1][len2]
 
 def get_random_word(vocabs):
@@ -167,7 +167,7 @@ def metaphone_sim_original(target, threshold = 1):
     return get_random_word(vocab)
   return ret
 
-import Levenshtein
+
 def metaphone_sim(target, threshold = 1):
   '''
   First generate Metaphone representation for the word
@@ -384,7 +384,6 @@ class Error_generator():
     Randomly replace #num word(s) in the given text ARRAY, preserving input text capitalization
     Return a dict as json form
     """
-#     result = dict()
     res_idx = result['index']
     res_truth = result['truth']
     res_error = result['error']
@@ -429,7 +428,6 @@ class Error_generator():
       hotshot[chosen_idx] = hs_code
       num_cnt += 1
     
-#     res_text = ' '.join(words).capitalize()
     result['text'] = words_raw #res_text
     result['index'] = res_idx
     result['truth'] = res_truth

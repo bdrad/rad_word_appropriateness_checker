@@ -3,23 +3,23 @@ import numpy as np
 from tqdm import tqdm, trange
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
-from transformers import BertTokenizer, BertConfig
+from torch.utils.tensorboard import SummaryWriter
+import transformers
+from transformers import BertTokenizer, BertConfig, BertForTokenClassification, AdamW
 from keras.preprocessing.sequence import pad_sequences
 from sklearn.model_selection import train_test_split
-import transformers
-from transformers import BertForTokenClassification, AdamW
 from sklearn.metrics import classification_report, confusion_matrix, multilabel_confusion_matrix, f1_score, accuracy_score, matthews_corrcoef, roc_auc_score
 import os, argparse
-import tensorflow as tf
 import pickle
-import pdb
 
     
 def main(parser):
     
     in_data, sv_dir, model_dir, epochs, learn_rate, batch_size = parser.data_dir, parser.save_dir, parser.model_dir, int(parser.epochs), float(parser.learn_rate), int(parser.batch_size)
     
-    tf.logging.set_verbosity(tf.logging.INFO)
+    if not os.path.isdir(sv_dir):
+        os.makedirs(sv_dir)
+    writer = SummaryWriter('finetune_logs') 
     
     df = pd.read_pickle(in_data)
     
@@ -28,14 +28,15 @@ def main(parser):
     
     tag_values = ['normal', 'insert', 'delete', 'sub', 'PAD']
     tag2idx = {t: i for i, t in enumerate(tag_values)}
-    
-    tf.logging.info('Example pairs')
-    tf.logging.info('%s : %s' % (raw_labels[200], comments[200]))
-    tf.logging.info('%s : %s' % (raw_labels[20], comments[20]))
+
+    writer.add_text('info', 'Example pairs', 0)
+    writer.add_text('info', '%s : %s' % (raw_labels[10], comments[10]), 10)
+    writer.add_text('info', '%s : %s' % (raw_labels[20], comments[20]), 20)
         
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_gpu = torch.cuda.device_count()
-    tf.logging.info(str(torch.cuda.get_device_name(0)))
+
+    writer.add_text('info', 'device: %s' % str(device), 30) #torch.cuda.get_device_name(0)
     
     #Load in tokenizer
     max_length = 250
@@ -84,17 +85,14 @@ def main(parser):
     train_inputs = torch.tensor(train_inputs)
     train_labels = torch.tensor(train_labels)
     train_masks = torch.tensor(train_masks)
-#     train_token_types = torch.tensor(train_token_types)
 
     validation_inputs = torch.tensor(validation_inputs)
     validation_labels = torch.tensor(validation_labels)
     validation_masks = torch.tensor(validation_masks)
-#     validation_token_types = torch.tensor(validation_token_types)
-    
+
     test_inputs = torch.tensor(test_inputs)
     test_labels = torch.tensor(test_labels)
     test_masks = torch.tensor(test_masks)
-#     test_token_types = torch.tensor(test_token_types)
 
     # Create an iterator of our data with torch DataLoader. This helps save on memory during training because, unlike a for loop, 
     # with an iterator the entire dataset does not need to be loaded into memory
@@ -110,9 +108,11 @@ def main(parser):
     test_data = TensorDataset(test_inputs, test_masks, test_labels)#, test_token_types)
     test_sampler = SequentialSampler(test_data)
     test_dataloader = DataLoader(test_data, sampler=test_sampler, batch_size=batch_size)
-    tf.logging.info('train: %s ; val: %s ; test: %s' % (str(train_inputs.shape), str(validation_inputs.shape), str(test_inputs.shape)))
     
-    tf.logging.info('Saving data loaders..')
+    writer.add_text('info', 'inputs shape\ntrain: %s ; val: %s ; test: %s' % (str(train_inputs.shape), str(validation_inputs.shape), str(test_inputs.shape)), 40)
+    
+    print('Saving data loaders...')
+
     torch.save(validation_dataloader, os.path.join(sv_dir,'validation_data_loader'))
     torch.save(train_dataloader, os.path.join(sv_dir,'train_data_loader'))
     torch.save(test_dataloader, os.path.join(sv_dir,'test_data_loader'))
@@ -122,7 +122,9 @@ def main(parser):
 #     model = BertForSequenceClassification.from_pretrained(model_dir, num_labels=num_labels)
     model = BertForTokenClassification.from_pretrained(model_dir, num_labels=len(tag2idx), output_attentions = False,
         output_hidden_states = False)
-    model.cuda()
+    
+    if torch.cuda.is_available():
+        model.cuda()
     
     
     FULL_FINETUNING = True
@@ -201,11 +203,12 @@ def main(parser):
 
         # Calculate the average loss over the training data.
         avg_train_loss = total_loss / len(train_dataloader)
-        tf.logging.info("Average train loss: {}".format(avg_train_loss))
+
+        writer.add_text('info', "Average train loss: {}".format(avg_train_loss), 50)
+        print("\nAverage train loss: {}".format(avg_train_loss))
 
         # Store the loss value for plotting the learning curve.
         loss_values.append(avg_train_loss)
-
 
         # ========================================
         #               Validation
@@ -241,17 +244,21 @@ def main(parser):
 
         eval_loss = eval_loss / len(validation_dataloader)
         validation_loss_values.append(eval_loss)
-        tf.logging.info("Validation loss: {}".format(eval_loss))
+
+        print("Validation loss: {}".format(eval_loss))
+
         pred_tags = [tag_values[p_i] for p, l in zip(predictions, true_labels)
                                      for p_i, l_i in zip(p, l) if tag_values[l_i] != "PAD"]
         valid_tags = [tag_values[l_i] for l in true_labels
                                       for l_i in l if tag_values[l_i] != "PAD"]
-        tf.logging.info('Validation F1 Accuracy: %s' % (str( f1_score(valid_tags, pred_tags,average=None) )))
-        tf.logging.info('Validation Flat Accuracy: %s' % (str( accuracy_score(valid_tags, pred_tags) )))
-        
+       
+        print('Validation F1 Accuracy: %s' % (str( f1_score(valid_tags, pred_tags,average=None))))
+        print('Validation Flat Accuracy: %s' % (str( accuracy_score(valid_tags, pred_tags))))
     
-    # Saving trained model    
-    torch.save(model.state_dict(), os.path.join(sv_dir,'pytorch_model.bin')) #finetuned_model_v1
+    # Saving trained model
+    model.save_pretrained(sv_dir)
+    tokenizer.save_pretrained(sv_dir)
+    print('Model saved to %s' % sv_dir)
     
     
     # ========================================
@@ -287,17 +294,22 @@ def main(parser):
     
     eval_loss = eval_loss / len(test_dataloader)
     validation_loss_values.append(eval_loss)
-    tf.logging.info("Test loss: {}".format(eval_loss))
+
+    print("Test loss: {}".format(eval_loss))
     pred_tags = [tag_values[p_i] for p, l in zip(predictions, true_labels)
                                  for p_i, l_i in zip(p, l) if tag_values[l_i] != "PAD"]
     test_tags = [tag_values[l_i] for l in true_labels
                                   for l_i in l if tag_values[l_i] != "PAD"]
-    tf.logging.info('Test F1 Accuracy: %s' % (str( f1_score(test_tags, pred_tags,average=None) )))
-    tf.logging.info('Test Flat Accuracy: %s' % (str( accuracy_score(test_tags, pred_tags) )))
+
+    print('Test F1 Accuracy: %s' % (str( f1_score(test_tags, pred_tags,average=None) )))
+    print('Test Flat Accuracy: %s' % (str( accuracy_score(test_tags, pred_tags) )))
     
     clf_report = classification_report(test_tags,pred_tags)
-    tf.logging.info(str( clf_report ))
+
+    print(str( clf_report ))
     pickle.dump(clf_report, open(os.path.join(sv_dir, 'classification_report.txt'),'wb')) #save report
+
+    writer.close()
                    
                    
 if __name__=='__main__': 

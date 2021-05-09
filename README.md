@@ -75,6 +75,16 @@ python test.py \
 
 In this folder, there're two sample files which serve as a good start for you to quickly run the code. In sample_corpus.txt, we scraped the findings section of ten radiology reports from [NATIONALRad](https://nationalrad.com/radiology/reports/). We performed sentence segmentation with [spaCy](https://spacy.io/). 
 
+
+## Instructions for Running in a Docker Container
+
+1. Clone this repository to your local PC.
+2. Build and run the Dockerfile: `docker run --rm -it $(docker build -q .) bash`
+3. Run generate_error_corpus.py script to generate data for fine-tuning. We've provided you with a sample corpus file and a vocab file. Feel free to generate your own errors with them. For example: `python generate_error_corpus.py --vocab_file=sample_data/sample_vocab.csv --corpus_file=sample_data/sample_corpus.txt --save_dir=sample_data/`
+5. Run finetuning.py to fine tune the BERT model for dictation error detection. You'll use the `error_corpus.pickle` that you created in step 3. For example: `mkdir finetuned_model && python finetune.py --data_dir=sample_data/error_corpus.pickle --model_dir=bert-base-uncased --save_dir=finetuned_model/ --epochs=3 --learn_rate=3e-5 --batch_size=32` 
+6. Run test.py to evaluate your finetuned model.  You can create another corrupted corpus (step 3) to test it. For example: `python test.py --data_dir=sample_data/error_corpus.pickle --model_dir=finetuned_model/ --save_dir=finetuned_model/ --batch_size=32` 
+
+
 ## Instructions for Running Locally
 
 1. Clone this repository to your local PC.
